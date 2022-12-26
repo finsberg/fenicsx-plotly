@@ -1,12 +1,11 @@
 import os
+from pathlib import Path
 
 import dolfinx
 import numpy as np
+import plotly
 import plotly.graph_objects as go
 import plotly.io as pio
-
-# from pathlib import Path
-# import plotly
 
 try:
     _SHOW_PLOT = bool(int(os.getenv("FENICS_PLOTLY_SHOW", 1)))
@@ -26,6 +25,39 @@ def set_renderer(renderer):
 set_renderer(_RENDERER)
 
 
+def savefig(fig, filename, save_config=None):
+    """Save figure to file
+
+    Parameters
+    ----------
+    fig : `plotly.graph_objects.Figure`
+        This figure that you want to save
+    filename : Path or str
+        Path to the destination where you want to
+        save the figure
+    save_config : dict, optional
+        Additional configurations to be passed
+        to `plotly.offline.plot`, by default None
+    """
+
+    filename = Path(filename)
+    outdir = filename.parent
+    assert outdir.exists(), f"Folder {outdir} does not exist"
+
+    config = {
+        "toImageButtonOptions": {
+            "filename": filename.stem,
+            "width": 1500,
+            "height": 1200,
+        },
+    }
+    if save_config is not None:
+        config.update(save_config)
+
+    path = outdir.joinpath(filename)
+    plotly.offline.plot(fig, filename=path.as_posix(), auto_open=False, config=config)
+
+
 def _get_triangles(mesh):
     faces = dolfinx.mesh.locate_entities(
         mesh,
@@ -33,13 +65,14 @@ def _get_triangles(mesh):
         lambda x: np.full(x.shape[1], True, dtype=bool),
     )
 
-    mesh.topology.create_connectivity(2, 1)
-    conn = mesh.topology.connectivity(2, 1)
+    mesh.topology.create_connectivity(2, 0)
+    conn = mesh.topology.connectivity(2, 0)
     triangle = np.zeros((3, faces.size), dtype=int)
 
     for face in faces:
         # FIXME: Should be possible to do this vectorized!
         triangle[:, face] = conn.links(face)
+
     return triangle
 
 
@@ -106,8 +139,8 @@ def _wireframe_plot_mesh(mesh, **kwargs):
 
 def _handle_mesh(obj, **kwargs):
     data = []
-    wireframe = kwargs.get("wireframe", True)
-    if wireframe:
+    wireframe = bool(kwargs.get("wireframe", False))
+    if not wireframe:
         surf = _surface_plot_mesh(obj, **kwargs)
         data.append(surf)
 
@@ -139,12 +172,12 @@ def plot(
 
     Parameters
     ----------
-    obj : Mesh, Function. FunctionoSpace, MeshFunction, DirichleyBC
-        FEnicS object to be plotted
+    obj : Mesh, Function. FunctionSpace, MeshFunction, DirichletBC
+        FEniCSx object to be plotted
     colorscale : str, optional
         The colorscale, by default "inferno"
     wireframe : bool, optional
-        Whether you want to show the mesh in wirteframe, by default True
+        Whether you want to show the mesh in wireframe, by default True
     scatter : bool, optional
         Plot function as scatter plot, by default False
     size : int, optional
@@ -227,15 +260,16 @@ def plot(
     if size_frame is not None:
         layout.update(width=size_frame[0], height=size_frame[1])
 
-    fig = go.Figure(data=data, layout=layout)
+    fig = go.FigureWidget(data=data, layout=layout)
     fig.update_layout(hovermode="closest")
 
-    # if filename is not None:
-    #     savefig(fig, filename)
+    if filename is not None:
+        savefig(fig, filename)
+
     if show and _SHOW_PLOT:
         fig.show()
-    return fig
-    # return FEniCSPlotFig(fig)
+
+    return FEniCSPlotFig(fig)
 
 
 class FEniCSPlotFig:
@@ -250,5 +284,5 @@ class FEniCSPlotFig:
         if _SHOW_PLOT:
             self.figure.show()
 
-    # def save(self, filename):
-    #     savefig(self.figure, filename)
+    def save(self, filename):
+        savefig(self.figure, filename)
