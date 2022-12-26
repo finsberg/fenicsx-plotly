@@ -29,3 +29,13 @@ def get_mesh(dim):
 def test_plot_mesh(dim, wireframe):
     mesh = get_mesh(dim)
     plot(mesh, wireframe=wireframe, show=False)
+
+
+@pytest.mark.parametrize(
+    "dim, wireframe, degree",
+    it.product([2, 3], [True, False], [1, 2, 3]),
+)
+def test_plot_scalar_cg_function_space(dim, wireframe, degree):
+    mesh = get_mesh(dim)
+    V = dolfinx.fem.FunctionSpace(mesh, ("CG", degree))
+    plot(V, wireframe=wireframe, show=False)
