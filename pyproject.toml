@@ -19,7 +19,7 @@ test = [
 dev = [
     "pdbpp",
     "ipython",
-
+    "bump2version",
     "pre-commit",
 ]
 docs = [
