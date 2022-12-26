@@ -35,3 +35,25 @@ docker pull ghcr.io/finsberg/fenicsx-plotly:v0.1.1
 ```
 
 ## Simple Example
+```python
+import dolfinx
+from mpi4py import MPI
+from fenicsx_plotly import plot
+
+mesh = dolfinx.mesh.create_unit_cube(MPI.COMM_WORLD, 3, 3, 3)
+
+plot(mesh)
+```
+
+## Supported objects (and object that will be supported in the future)
+- [x] dolfinx.mesh.Mesh
+- [] dolfinx.mesh.MeshTagsMetaClass
+- [x] dolfinx.fem.FunctionSpace
+- [] dolfinx.fem.Function
+- [] dolfinx.fem.bcs.DirichletBCMetaClass
+
+
+## Contributing
+Contributions are welcomed!
+
+See https://finsberg.github.io/fenicsx-plotly/CONTRIBUTING.html for more info.
