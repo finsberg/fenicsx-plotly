@@ -137,6 +137,23 @@ def _wireframe_plot_mesh(mesh, **kwargs):
     return lines
 
 
+def _plot_dofs(functionspace, size, **kwargs):
+    dofs_coord = functionspace.tabulate_dof_coordinates()
+    if len(dofs_coord[0, :]) == 2:
+        dofs_coord = np.c_[dofs_coord, np.zeros(len(dofs_coord[:, 0]))]
+
+    points = go.Scatter3d(
+        x=dofs_coord[:, 0],
+        y=dofs_coord[:, 1],
+        z=dofs_coord[:, 2],
+        mode="markers",
+        name=kwargs.get("name", None),
+        marker=dict(size=size),
+    )
+
+    return points
+
+
 def _handle_mesh(obj, **kwargs):
     data = []
     wireframe = bool(kwargs.get("wireframe", False))
@@ -146,6 +163,17 @@ def _handle_mesh(obj, **kwargs):
 
     data.append(_wireframe_plot_mesh(obj))
 
+    return data
+
+
+def _handle_function_space(obj, **kwargs):
+    data = []
+    points = _plot_dofs(obj, **kwargs)
+    data.append(points)
+
+    if kwargs.get("wireframe", True):
+        lines = _wireframe_plot_mesh(obj.mesh, **kwargs)
+        data.append(lines)
     return data
 
 
@@ -168,7 +196,7 @@ def plot(
     show=True,
     filename=None,
 ):
-    """Plot FEnICS object
+    """Plot FEniCSx object
 
     Parameters
     ----------
@@ -199,7 +227,7 @@ def plot(
     normalize : bool, optional
         For vectors, normalize then to have unit length, by default False
     component : [type], optional
-        Plot a componenent (["Magnitude", "x", "y", "z"]) for vector, by default None
+        Plot a component (["Magnitude", "x", "y", "z"]) for vector, by default None
     showscale : bool, optional
         Show colorbar, by default True
     show : bool, optional
@@ -222,8 +250,8 @@ def plot(
     # elif isinstance(obj, fe.cpp.mesh.MeshFunctionSizet):
     #     handle = _handle_meshfunction
 
-    # elif isinstance(obj, fe.FunctionSpace):
-    #     handle = _handle_function_space
+    elif isinstance(obj, dolfinx.fem.FunctionSpace):
+        handle = _handle_function_space
 
     # elif isinstance(obj, fe.DirichletBC):
     #     handle = _handle_dirichlet_bc
