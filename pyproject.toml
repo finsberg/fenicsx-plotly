@@ -8,7 +8,7 @@ description = "Lightweight library for plotting FEniCS x objects using plotly"
 authors = [{name = "Henrik Finsberg", email = "henriknf@simula.no"}]
 license = {file = "LICENSE"}
 readme = "README.md"
-dependencies = ["fenics-dolfinx", "numpy", "plotly"]
+dependencies = ["fenics-dolfinx", "numpy", "plotly", "ipywidgets==7.7.2"]
 
 
 [project.optional-dependencies]
