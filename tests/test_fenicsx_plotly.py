@@ -1,6 +1,7 @@
 import itertools as it
 
 import dolfinx
+import numpy as np
 import pytest
 from fenicsx_plotly import plot
 from mpi4py import MPI
@@ -39,3 +40,15 @@ def test_plot_scalar_cg_function_space(dim, wireframe, degree):
     mesh = get_mesh(dim)
     V = dolfinx.fem.FunctionSpace(mesh, ("CG", degree))
     plot(V, wireframe=wireframe, show=False)
+
+
+@pytest.mark.parametrize(
+    "dim, wireframe, scatter, degree",
+    it.product([2, 3], [True, False], [True, False], [1, 2]),
+)
+def test_plot_scalar_cg_function(dim, wireframe, scatter, degree):
+    mesh = get_mesh(dim)
+    V = dolfinx.fem.FunctionSpace(mesh, ("CG", degree))
+    p = dolfinx.fem.Function(V)
+    p.interpolate(lambda x: np.sin(x[0]))
+    plot(p, scatter=scatter, wireframe=wireframe, show=False)

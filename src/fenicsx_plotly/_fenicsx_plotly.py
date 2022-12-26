@@ -137,7 +137,7 @@ def _wireframe_plot_mesh(mesh, **kwargs):
     return lines
 
 
-def _plot_dofs(functionspace, size, **kwargs):
+def _plot_dofs(functionspace: dolfinx.fem.FunctionSpace, size: int, **kwargs):
     dofs_coord = functionspace.tabulate_dof_coordinates()
     if len(dofs_coord[0, :]) == 2:
         dofs_coord = np.c_[dofs_coord, np.zeros(len(dofs_coord[:, 0]))]
@@ -149,6 +149,80 @@ def _plot_dofs(functionspace, size, **kwargs):
         mode="markers",
         name=kwargs.get("name", None),
         marker=dict(size=size),
+    )
+
+    return points
+
+
+def _surface_plot_function(
+    function, colorscale, showscale=True, intensitymode="vertex", **kwargs
+):
+    fs = function.function_space
+    mesh = fs.mesh
+
+    el = fs.ufl_element()
+    # TODO: Ask Jørgen if there is a better way
+    if (el.family(), el.degree()) != ("P", 1):
+        V = dolfinx.fem.FunctionSpace(mesh, ("P", 1))
+        u = dolfinx.fem.Function(V)
+        u.interpolate(function)
+        val = u.x.array
+    else:
+        val = function.x.array
+
+    triangle = _get_triangles(mesh)
+
+    coord = mesh.geometry.x
+
+    hoverinfo = ["val:" + "%.5f" % item for item in val]
+
+    if len(coord[0, :]) == 2:
+        coord = np.c_[coord, np.zeros(len(coord[:, 0]))]
+
+    surface = go.Mesh3d(
+        x=coord[:, 0],
+        y=coord[:, 1],
+        z=coord[:, 2],
+        i=triangle[0, :],
+        j=triangle[1, :],
+        k=triangle[2, :],
+        flatshading=True,
+        intensitymode=intensitymode,
+        intensity=val,
+        colorscale=colorscale,
+        lighting=dict(ambient=1),
+        name="",
+        hoverinfo="all",
+        text=hoverinfo,
+        showscale=showscale,
+    )
+
+    return surface
+
+
+def _scatter_plot_function(
+    function: dolfinx.fem.Function, colorscale, showscale=True, size=10, **kwargs
+):
+    dofs_coord = function.function_space.tabulate_dof_coordinates()
+    if len(dofs_coord[0, :]) == 2:
+        dofs_coord = np.c_[dofs_coord, np.zeros(len(dofs_coord[:, 0]))]
+
+    mesh = function.function_space.mesh
+    val = function.x.array
+    coord = mesh.geometry.x
+    hoverinfo = ["val:" + "%.5f" % item for item in val]
+
+    if len(coord[0, :]) == 2:
+        coord = np.c_[coord, np.zeros(len(coord[:, 0]))]
+
+    points = go.Scatter3d(
+        x=dofs_coord[:, 0],
+        y=dofs_coord[:, 1],
+        z=dofs_coord[:, 2],
+        mode="markers",
+        marker=dict(size=size, color=val, colorscale=colorscale),
+        hoverinfo="all",
+        text=hoverinfo,
     )
 
     return points
@@ -174,6 +248,57 @@ def _handle_function_space(obj, **kwargs):
     if kwargs.get("wireframe", True):
         lines = _wireframe_plot_mesh(obj.mesh, **kwargs)
         data.append(lines)
+    return data
+
+
+def _handle_function(
+    obj,
+    **kwargs,
+):
+    data = []
+    scatter = kwargs.get("scatter", False)
+    # norm = kwargs.get("norm", False)
+    # component = kwargs.get("component", None)
+
+    if len(obj.ufl_shape) == 0:
+        if scatter:
+            surface = _scatter_plot_function(obj, **kwargs)
+        else:
+            surface = _surface_plot_function(obj, **kwargs)
+        data.append(surface)
+
+    # elif len(obj.ufl_shape) == 1:
+    #     if norm or component == "magnitude":
+    #         V = obj.function_space().split()[0].collapse()
+    #         magnitude = fe.project(fe.sqrt(fe.inner(obj, obj)), V)
+    #     else:
+    #         magnitude = None
+
+    #     if component is None:
+    #         if norm:
+    #             surface = _surface_plot_function(magnitude, **kwargs)
+    #             data.append(surface)
+
+    #         cones = _cone_plot(obj, **kwargs)
+    #         data.append(cones)
+    #     else:
+    #         if component == "magnitude":
+    #             surface = _surface_plot_function(magnitude, **kwargs)
+    #             data.append(surface)
+    #         else:
+    #             for i, comp in enumerate(["x", "y", "z"]):
+
+    #                 if component not in [comp, comp.upper()]:
+    #                     continue
+    #                 surface = _surface_plot_function(
+    #                     obj.sub(i, deepcopy=True), **kwargs
+    #                 )
+    #                 data.append(surface)
+
+    if kwargs.get("wireframe", True):
+        lines = _wireframe_plot_mesh(obj.function_space.mesh)
+        data.append(lines)
+
     return data
 
 
@@ -244,8 +369,8 @@ def plot(
     if isinstance(obj, dolfinx.mesh.Mesh):
         handle = _handle_mesh
 
-    # elif isinstance(obj, fe.Function):
-    #     handle = _handle_function
+    elif isinstance(obj, dolfinx.fem.Function):
+        handle = _handle_function
 
     # elif isinstance(obj, fe.cpp.mesh.MeshFunctionSizet):
     #     handle = _handle_meshfunction

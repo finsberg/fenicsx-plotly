@@ -50,6 +50,8 @@ plot(mesh)
 - [] dolfinx.mesh.MeshTagsMetaClass
 - [x] dolfinx.fem.FunctionSpace
 - [] dolfinx.fem.Function
+    - [x] Scalar
+    - [] Vector
 - [] dolfinx.fem.bcs.DirichletBCMetaClass
 
 
