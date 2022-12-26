@@ -1,5 +1,5 @@
 # Use github pages for docker image
-FROM ghcr.io/finsberg/fenicsx-plotly:v0.1.0
+FROM ghcr.io/finsberg/fenicsx-plotly:v0.1.1
 
 # Create user with a home directory
 ARG NB_USER
