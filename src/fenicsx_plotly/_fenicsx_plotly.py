@@ -227,14 +227,15 @@ def plot(
     if size_frame is not None:
         layout.update(width=size_frame[0], height=size_frame[1])
 
-    fig = go.FigureWidget(data=data, layout=layout)
+    fig = go.Figure(data=data, layout=layout)
     fig.update_layout(hovermode="closest")
 
     # if filename is not None:
     #     savefig(fig, filename)
     if show and _SHOW_PLOT:
         fig.show()
-    return FEniCSPlotFig(fig)
+    return fig
+    # return FEniCSPlotFig(fig)
 
 
 class FEniCSPlotFig:
