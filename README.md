@@ -49,9 +49,9 @@ plot(mesh)
 - [x] dolfinx.mesh.Mesh
 - [] dolfinx.mesh.MeshTagsMetaClass
 - [x] dolfinx.fem.FunctionSpace
-- [] dolfinx.fem.Function
+- [x] dolfinx.fem.Function
     - [x] Scalar
-    - [] Vector
+    - [x] Vector
 - [] dolfinx.fem.bcs.DirichletBCMetaClass
 
 

@@ -6,6 +6,8 @@ import numpy as np
 import plotly
 import plotly.graph_objects as go
 import plotly.io as pio
+import ufl
+from petsc4py import PETSc
 
 try:
     _SHOW_PLOT = bool(int(os.getenv("FENICS_PLOTLY_SHOW", 1)))
@@ -23,6 +25,32 @@ def set_renderer(renderer):
 
 
 set_renderer(_RENDERER)
+
+
+def project(
+    expr: ufl.core.expr.Expr,
+    V: dolfinx.fem.FunctionSpace,
+) -> dolfinx.fem.Function:
+    # Ensure we have a mesh and attach to measure
+    dx = ufl.dx(V.mesh)
+
+    # Define variational problem for projection
+    w = ufl.TestFunction(V)
+    Pv = ufl.TrialFunction(V)
+    a = dolfinx.fem.form(ufl.inner(Pv, w) * dx)
+    L = dolfinx.fem.form(ufl.inner(expr, w) * dx)
+
+    # Assemble linear system
+    A = dolfinx.fem.petsc.assemble_matrix(a)
+    A.assemble()
+    b = dolfinx.fem.petsc.assemble_vector(L)
+
+    # Solve linear system
+    solver = PETSc.KSP().create(A.getComm())
+    solver.setOperators(A)
+    u = dolfinx.fem.Function(V)
+    solver.solve(b, u.vector)
+    return u
 
 
 def savefig(fig, filename, save_config=None):
@@ -154,21 +182,46 @@ def _plot_dofs(functionspace: dolfinx.fem.FunctionSpace, size: int, **kwargs):
     return points
 
 
+def _get_vertex_values(function: dolfinx.fem.Function) -> np.ndarray:
+
+    fs = function.function_space
+    mesh = fs.mesh
+    shape = function.ufl_shape
+
+    if len(shape) == 0:  # FiniteElement
+        el = fs.ufl_element()
+        # TODO: Ask Jørgen if there is a better way
+        # Where is the `.compute_vertex_values()` method?
+        if (el.family(), el.degree()) != ("P", 1):
+            # Interpolate into a linear lagrange space
+            V = dolfinx.fem.FunctionSpace(mesh, ("P", 1))
+            u = dolfinx.fem.Function(V)
+            u.interpolate(function)
+            res = u.x.array
+        else:
+            res = function.x.array
+    elif len(shape) == 1:  # Vector Element
+        res = np.zeros((mesh.geometry.x.shape[0], shape[0]))
+        for i in range(shape[0]):
+            res[:, i] = _get_vertex_values(function.sub(i).collapse())
+
+    else:  # Tensor Element
+        res = np.zeros((mesh.geometry.x.shape[0], shape[0], shape[1]))
+        count = 0
+        for i in range(shape[0]):
+            for j in range(shape[0]):
+                res[:, i, j] = _get_vertex_values(function.sub(count + j).collapse())
+            count += shape[0]
+    return res
+
+
 def _surface_plot_function(
     function, colorscale, showscale=True, intensitymode="vertex", **kwargs
 ):
     fs = function.function_space
     mesh = fs.mesh
 
-    el = fs.ufl_element()
-    # TODO: Ask Jørgen if there is a better way
-    if (el.family(), el.degree()) != ("P", 1):
-        V = dolfinx.fem.FunctionSpace(mesh, ("P", 1))
-        u = dolfinx.fem.Function(V)
-        u.interpolate(function)
-        val = u.x.array
-    else:
-        val = function.x.array
+    val = _get_vertex_values(function=function)
 
     triangle = _get_triangles(mesh)
 
@@ -228,6 +281,36 @@ def _scatter_plot_function(
     return points
 
 
+def _cone_plot(function, size=10, showscale=True, normalize=False, **kwargs):
+
+    mesh = function.function_space.mesh
+    points = mesh.geometry.x
+    vectors = _get_vertex_values(function)
+
+    if len(points[0, :]) == 2:
+        points = np.c_[points, np.zeros(len(points[:, 0]))]
+
+    if vectors.shape[1] == 2:
+        vectors = np.c_[vectors, np.zeros(len(vectors[:, 0]))]
+
+    if normalize:
+        vectors = np.divide(vectors.T, np.linalg.norm(vectors, axis=1)).T
+
+    cones = go.Cone(
+        x=points[:, 0],
+        y=points[:, 1],
+        z=points[:, 2],
+        u=vectors[:, 0],
+        v=vectors[:, 1],
+        w=vectors[:, 2],
+        sizemode="absolute",
+        sizeref=size,
+        showscale=showscale,
+    )
+
+    return cones
+
+
 def _handle_mesh(obj, **kwargs):
     data = []
     wireframe = bool(kwargs.get("wireframe", False))
@@ -257,8 +340,9 @@ def _handle_function(
 ):
     data = []
     scatter = kwargs.get("scatter", False)
-    # norm = kwargs.get("norm", False)
-    # component = kwargs.get("component", None)
+    norm = kwargs.get("norm", False)
+    component = kwargs.get("component", None)
+    fs = obj.function_space
 
     if len(obj.ufl_shape) == 0:
         if scatter:
@@ -267,33 +351,39 @@ def _handle_function(
             surface = _surface_plot_function(obj, **kwargs)
         data.append(surface)
 
-    # elif len(obj.ufl_shape) == 1:
-    #     if norm or component == "magnitude":
-    #         V = obj.function_space().split()[0].collapse()
-    #         magnitude = fe.project(fe.sqrt(fe.inner(obj, obj)), V)
-    #     else:
-    #         magnitude = None
+    elif len(obj.ufl_shape) == 1:
+        if norm or component == "magnitude":
+            V, _ = obj.function_space.sub(0).collapse()
+            magnitude = dolfinx.fem.Function(V)
+            magnitude = project(ufl.sqrt(ufl.inner(obj, obj)), V)
+        else:
+            magnitude = None
 
-    #     if component is None:
-    #         if norm:
-    #             surface = _surface_plot_function(magnitude, **kwargs)
-    #             data.append(surface)
+        if component is None:
+            if norm:
+                surface = _surface_plot_function(magnitude, **kwargs)
+                data.append(surface)
 
-    #         cones = _cone_plot(obj, **kwargs)
-    #         data.append(cones)
-    #     else:
-    #         if component == "magnitude":
-    #             surface = _surface_plot_function(magnitude, **kwargs)
-    #             data.append(surface)
-    #         else:
-    #             for i, comp in enumerate(["x", "y", "z"]):
+            cones = _cone_plot(obj, **kwargs)
+            data.append(cones)
+        else:
+            if component == "magnitude":
+                surface = _surface_plot_function(magnitude, **kwargs)
+                data.append(surface)
+            else:
 
-    #                 if component not in [comp, comp.upper()]:
-    #                     continue
-    #                 surface = _surface_plot_function(
-    #                     obj.sub(i, deepcopy=True), **kwargs
-    #                 )
-    #                 data.append(surface)
+                for i, comp in enumerate(["x", "y", "z"]):
+
+                    if component not in [comp, comp.upper()]:
+                        continue
+                    if i >= obj.function_space.num_sub_spaces:
+                        raise RuntimeError(
+                            f"Cannot extract component from subspace {i} for"
+                            f" function space with {fs.num_sub_spaces}"
+                            " number of subspaces.",
+                        )
+                    surface = _surface_plot_function(obj.sub(i).collapse(), **kwargs)
+                    data.append(surface)
 
     if kwargs.get("wireframe", True):
         lines = _wireframe_plot_mesh(obj.function_space.mesh)
