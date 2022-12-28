@@ -391,6 +391,42 @@ def _handle_function(
     return data
 
 
+def _handle_meshtags(
+    obj: dolfinx.mesh.MeshTagsMetaClass, colorscale: str = "inferno", **kwargs
+) -> go.Mesh3d:
+
+    if obj.dim != 2:
+        raise NotImplementedError("Plotting of MeshTags is only supported for facets")
+    mesh = obj.mesh
+    # array = meshfunc.array()
+    coord = mesh.geometry.x
+    if len(coord[0, :]) == 2:
+        coord = np.c_[coord, np.zeros(len(coord[:, 0]))]
+
+    triangle = _get_triangles(mesh)
+    array = np.zeros(triangle.shape[1])
+    array[obj.indices] = obj.values
+
+    hoverinfo = ["val:" + "%d" % item for item in array]
+
+    return go.Mesh3d(
+        x=coord[:, 0],
+        y=coord[:, 1],
+        z=coord[:, 2],
+        i=triangle[0, :],
+        j=triangle[1, :],
+        k=triangle[2, :],
+        flatshading=True,
+        intensity=array,
+        colorscale=colorscale,
+        lighting=dict(ambient=1),
+        name="",
+        hoverinfo="all",
+        text=hoverinfo,
+        intensitymode="cell",
+    )
+
+
 class FEniCSPlotFig:
     def __init__(self, fig: go.FigureWidget) -> None:
         self.figure = fig
@@ -474,8 +510,8 @@ def plot(
     elif isinstance(obj, dolfinx.fem.Function):
         handle = _handle_function
 
-    # elif isinstance(obj, fe.cpp.mesh.MeshFunctionSizet):
-    #     handle = _handle_meshfunction
+    elif isinstance(obj, dolfinx.mesh.MeshTagsMetaClass):
+        handle = _handle_meshtags
 
     elif isinstance(obj, dolfinx.fem.FunctionSpace):
         handle = _handle_function_space
