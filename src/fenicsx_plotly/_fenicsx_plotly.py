@@ -7,7 +7,6 @@ import plotly
 import plotly.graph_objects as go
 import plotly.io as pio
 import ufl
-from petsc4py import PETSc
 
 try:
     _SHOW_PLOT = bool(int(os.getenv("FENICS_PLOTLY_SHOW", 1)))
@@ -25,32 +24,6 @@ def set_renderer(renderer):
 
 
 set_renderer(_RENDERER)
-
-
-def project(
-    expr: ufl.core.expr.Expr,
-    V: dolfinx.fem.FunctionSpace,
-) -> dolfinx.fem.Function:
-    # Ensure we have a mesh and attach to measure
-    dx = ufl.dx(V.mesh)
-
-    # Define variational problem for projection
-    w = ufl.TestFunction(V)
-    Pv = ufl.TrialFunction(V)
-    a = dolfinx.fem.form(ufl.inner(Pv, w) * dx)
-    L = dolfinx.fem.form(ufl.inner(expr, w) * dx)
-
-    # Assemble linear system
-    A = dolfinx.fem.petsc.assemble_matrix(a)
-    A.assemble()
-    b = dolfinx.fem.petsc.assemble_vector(L)
-
-    # Solve linear system
-    solver = PETSc.KSP().create(A.getComm())
-    solver.setOperators(A)
-    u = dolfinx.fem.Function(V)
-    solver.solve(b, u.vector)
-    return u
 
 
 def savefig(fig, filename, save_config=None):
@@ -355,7 +328,12 @@ def _handle_function(
         if norm or component == "magnitude":
             V, _ = obj.function_space.sub(0).collapse()
             magnitude = dolfinx.fem.Function(V)
-            magnitude = project(ufl.sqrt(ufl.inner(obj, obj)), V)
+            magnitude.interpolate(
+                dolfinx.fem.Expression(
+                    ufl.sqrt(ufl.inner(obj, obj)),
+                    V.element.interpolation_points(),
+                ),
+            )
         else:
             magnitude = None
 
