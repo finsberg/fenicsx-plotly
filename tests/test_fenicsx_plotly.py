@@ -105,3 +105,14 @@ def test_plot_vector_cg_function(dim, wireframe, normalize, degree, component):
         component=component,
         normalize=normalize,
     )
+
+
+def test_facet_function_3d():
+    mesh = get_mesh(3)
+    locator = lambda x: np.isclose(x[0], 0)
+    entities = dolfinx.mesh.locate_entities(mesh, 2, locator)
+    marker = 1
+    values = np.full_like(entities, marker)
+
+    facet_tags = dolfinx.mesh.meshtags(mesh, 2, entities, values)
+    plot(facet_tags)
