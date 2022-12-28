@@ -142,20 +142,20 @@ def _wireframe_plot_mesh(mesh, **kwargs):
         coord = np.c_[coord, np.zeros(len(coord[:, 0]))]
 
     cells = _get_cells(mesh)
-    tri_points = coord[cells]
-    Xe = []
-    Ye = []
-    Ze = []
-    for T in tri_points:
-        Xe.extend([T[k % 3][0] for k in range(4)] + [None])
-        Ye.extend([T[k % 3][1] for k in range(4)] + [None])
-        Ze.extend([T[k % 3][2] for k in range(4)] + [None])
+
+    X = []
+    Y = []
+    Z = []
+    for c in cells:
+        X.extend(coord[c, :][:, 0].tolist() + [None])
+        Y.extend(coord[c, :][:, 1].tolist() + [None])
+        Z.extend(coord[c, :][:, 2].tolist() + [None])
 
     # define the trace for triangle sides
     lines = go.Scatter3d(
-        x=Xe,
-        y=Ye,
-        z=Ze,
+        x=X,
+        y=Y,
+        z=Z,
         mode="lines",
         name="",
         line=dict(color="rgb(70,70,70)", width=2),
