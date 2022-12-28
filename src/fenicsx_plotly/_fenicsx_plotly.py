@@ -1,4 +1,5 @@
 import os
+import typing
 from pathlib import Path
 
 import dolfinx
@@ -7,7 +8,7 @@ import plotly
 import plotly.graph_objects as go
 import plotly.io as pio
 import ufl
-from petsc4py import PETSc
+from plotly.basedatatypes import BaseTraceType as _BaseTraceType
 
 try:
     _SHOW_PLOT = bool(int(os.getenv("FENICS_PLOTLY_SHOW", 1)))
@@ -20,40 +21,18 @@ except ValueError:
     _RENDERER = "notebook"
 
 
-def set_renderer(renderer):
+def set_renderer(renderer: str) -> None:
     pio.renderers.default = renderer
 
 
 set_renderer(_RENDERER)
 
 
-def project(
-    expr: ufl.core.expr.Expr,
-    V: dolfinx.fem.FunctionSpace,
-) -> dolfinx.fem.Function:
-    # Ensure we have a mesh and attach to measure
-    dx = ufl.dx(V.mesh)
-
-    # Define variational problem for projection
-    w = ufl.TestFunction(V)
-    Pv = ufl.TrialFunction(V)
-    a = dolfinx.fem.form(ufl.inner(Pv, w) * dx)
-    L = dolfinx.fem.form(ufl.inner(expr, w) * dx)
-
-    # Assemble linear system
-    A = dolfinx.fem.petsc.assemble_matrix(a)
-    A.assemble()
-    b = dolfinx.fem.petsc.assemble_vector(L)
-
-    # Solve linear system
-    solver = PETSc.KSP().create(A.getComm())
-    solver.setOperators(A)
-    u = dolfinx.fem.Function(V)
-    solver.solve(b, u.vector)
-    return u
-
-
-def savefig(fig, filename, save_config=None):
+def savefig(
+    fig: go.FigureWidget,
+    filename: str,
+    save_config: typing.Optional[typing.Dict[str, typing.Any]] = None,
+):
     """Save figure to file
 
     Parameters
@@ -68,13 +47,13 @@ def savefig(fig, filename, save_config=None):
         to `plotly.offline.plot`, by default None
     """
 
-    filename = Path(filename)
-    outdir = filename.parent
+    fname = Path(filename)
+    outdir = fname.parent
     assert outdir.exists(), f"Folder {outdir} does not exist"
 
     config = {
         "toImageButtonOptions": {
-            "filename": filename.stem,
+            "filename": fname.stem,
             "width": 1500,
             "height": 1200,
         },
@@ -82,11 +61,10 @@ def savefig(fig, filename, save_config=None):
     if save_config is not None:
         config.update(save_config)
 
-    path = outdir.joinpath(filename)
-    plotly.offline.plot(fig, filename=path.as_posix(), auto_open=False, config=config)
+    plotly.offline.plot(fig, filename=fname.as_posix(), auto_open=False, config=config)
 
 
-def _get_triangles(mesh):
+def _get_triangles(mesh: dolfinx.mesh.Mesh) -> np.ndarray[int]:
     faces = dolfinx.mesh.locate_entities(
         mesh,
         2,
@@ -104,7 +82,9 @@ def _get_triangles(mesh):
     return triangle
 
 
-def _surface_plot_mesh(mesh, color, opacity=1.0, **kwargs):
+def _surface_plot_mesh(
+    mesh: dolfinx.mesh.Mesh, color: str = "gray", opacity: float = 1.0, **kwargs
+):
     coord = mesh.geometry.x
     triangle = _get_triangles(mesh)
     if len(coord[0, :]) == 2:
@@ -126,7 +106,7 @@ def _surface_plot_mesh(mesh, color, opacity=1.0, **kwargs):
     return surface
 
 
-def _get_cells(mesh) -> np.ndarray:
+def _get_cells(mesh: dolfinx.mesh.Mesh) -> np.ndarray:
     dm = mesh.geometry.dofmap
     cells = np.zeros((dm.num_nodes, len(dm.links(0))), dtype=np.int32)
     # FIXME: Should be possible to vectorize this
@@ -135,27 +115,27 @@ def _get_cells(mesh) -> np.ndarray:
     return cells
 
 
-def _wireframe_plot_mesh(mesh, **kwargs):
+def _wireframe_plot_mesh(mesh: dolfinx.mesh.Mesh, **kwargs) -> go.Scatter3d:
     coord = mesh.geometry.x
 
     if len(coord[0, :]) == 2:
         coord = np.c_[coord, np.zeros(len(coord[:, 0]))]
 
     cells = _get_cells(mesh)
-    tri_points = coord[cells]
-    Xe = []
-    Ye = []
-    Ze = []
-    for T in tri_points:
-        Xe.extend([T[k % 3][0] for k in range(4)] + [None])
-        Ye.extend([T[k % 3][1] for k in range(4)] + [None])
-        Ze.extend([T[k % 3][2] for k in range(4)] + [None])
+
+    X = []
+    Y = []
+    Z = []
+    for c in cells:
+        X.extend(coord[c, :][:, 0].tolist() + [None])
+        Y.extend(coord[c, :][:, 1].tolist() + [None])
+        Z.extend(coord[c, :][:, 2].tolist() + [None])
 
     # define the trace for triangle sides
     lines = go.Scatter3d(
-        x=Xe,
-        y=Ye,
-        z=Ze,
+        x=X,
+        y=Y,
+        z=Z,
         mode="lines",
         name="",
         line=dict(color="rgb(70,70,70)", width=2),
@@ -165,7 +145,9 @@ def _wireframe_plot_mesh(mesh, **kwargs):
     return lines
 
 
-def _plot_dofs(functionspace: dolfinx.fem.FunctionSpace, size: int, **kwargs):
+def _plot_dofs(
+    functionspace: dolfinx.fem.FunctionSpace, size: int, **kwargs
+) -> go.Scatter3d:
     dofs_coord = functionspace.tabulate_dof_coordinates()
     if len(dofs_coord[0, :]) == 2:
         dofs_coord = np.c_[dofs_coord, np.zeros(len(dofs_coord[:, 0]))]
@@ -216,8 +198,12 @@ def _get_vertex_values(function: dolfinx.fem.Function) -> np.ndarray:
 
 
 def _surface_plot_function(
-    function, colorscale, showscale=True, intensitymode="vertex", **kwargs
-):
+    function: dolfinx.fem.Function,
+    colorscale: str = "inferno",
+    showscale: bool = True,
+    intensitymode: str = "vertex",
+    **kwargs,
+) -> go.Mesh3d:
     fs = function.function_space
     mesh = fs.mesh
 
@@ -255,7 +241,7 @@ def _surface_plot_function(
 
 def _scatter_plot_function(
     function: dolfinx.fem.Function, colorscale, showscale=True, size=10, **kwargs
-):
+) -> go.Scatter3d:
     dofs_coord = function.function_space.tabulate_dof_coordinates()
     if len(dofs_coord[0, :]) == 2:
         dofs_coord = np.c_[dofs_coord, np.zeros(len(dofs_coord[:, 0]))]
@@ -281,7 +267,13 @@ def _scatter_plot_function(
     return points
 
 
-def _cone_plot(function, size=10, showscale=True, normalize=False, **kwargs):
+def _cone_plot(
+    function: dolfinx.fem.Function,
+    size: int = 10,
+    showscale: bool = True,
+    normalize: bool = False,
+    **kwargs,
+) -> go.Cone:
 
     mesh = function.function_space.mesh
     points = mesh.geometry.x
@@ -311,7 +303,7 @@ def _cone_plot(function, size=10, showscale=True, normalize=False, **kwargs):
     return cones
 
 
-def _handle_mesh(obj, **kwargs):
+def _handle_mesh(obj: dolfinx.mesh.Mesh, **kwargs) -> list[_BaseTraceType]:
     data = []
     wireframe = bool(kwargs.get("wireframe", False))
     if not wireframe:
@@ -323,7 +315,9 @@ def _handle_mesh(obj, **kwargs):
     return data
 
 
-def _handle_function_space(obj, **kwargs):
+def _handle_function_space(
+    obj: dolfinx.fem.FunctionSpace, **kwargs
+) -> list[_BaseTraceType]:
     data = []
     points = _plot_dofs(obj, **kwargs)
     data.append(points)
@@ -334,56 +328,61 @@ def _handle_function_space(obj, **kwargs):
     return data
 
 
-def _handle_function(
-    obj,
+def _handle_scalar_function(
+    obj: dolfinx.fem.Function, scatter: bool = False, **kwargs
+) -> _BaseTraceType:
+    if scatter:
+        surface = _scatter_plot_function(obj, **kwargs)
+    else:
+        surface = _surface_plot_function(obj, **kwargs)
+    return surface
+
+
+def _handle_vector_function(
+    obj: dolfinx.fem.Function,
+    component: typing.Optional[str] = None,
     **kwargs,
-):
-    data = []
-    scatter = kwargs.get("scatter", False)
-    norm = kwargs.get("norm", False)
-    component = kwargs.get("component", None)
+) -> _BaseTraceType:
+
     fs = obj.function_space
 
-    if len(obj.ufl_shape) == 0:
-        if scatter:
-            surface = _scatter_plot_function(obj, **kwargs)
-        else:
-            surface = _surface_plot_function(obj, **kwargs)
-        data.append(surface)
+    if component is None:
+        return _cone_plot(obj, **kwargs)
 
-    elif len(obj.ufl_shape) == 1:
-        if norm or component == "magnitude":
-            V, _ = obj.function_space.sub(0).collapse()
-            magnitude = dolfinx.fem.Function(V)
-            magnitude = project(ufl.sqrt(ufl.inner(obj, obj)), V)
-        else:
-            magnitude = None
+    elif component == "magnitude":
+        V, _ = obj.function_space.sub(0).collapse()
+        magnitude = dolfinx.fem.Function(V)
+        magnitude.interpolate(
+            dolfinx.fem.Expression(
+                ufl.sqrt(ufl.inner(obj, obj)),
+                V.element.interpolation_points(),
+            ),
+        )
+        return _surface_plot_function(magnitude, **kwargs)
 
-        if component is None:
-            if norm:
-                surface = _surface_plot_function(magnitude, **kwargs)
-                data.append(surface)
+    else:
+        # Extract x, y or z
+        i = {"x": 0, "y": 1, "z": 2}[component.lower()]
+        if i >= fs.num_sub_spaces:
+            raise RuntimeError(
+                f"Cannot extract component from subspace {i} for"
+                f" function space with {fs.num_sub_spaces}"
+                " number of subspaces.",
+            )
+        return _surface_plot_function(obj.sub(i).collapse(), **kwargs)
 
-            cones = _cone_plot(obj, **kwargs)
-            data.append(cones)
-        else:
-            if component == "magnitude":
-                surface = _surface_plot_function(magnitude, **kwargs)
-                data.append(surface)
-            else:
 
-                for i, comp in enumerate(["x", "y", "z"]):
+def _handle_function(
+    obj: dolfinx.fem.Function,
+    **kwargs,
+) -> list[_BaseTraceType]:
+    data = []
 
-                    if component not in [comp, comp.upper()]:
-                        continue
-                    if i >= obj.function_space.num_sub_spaces:
-                        raise RuntimeError(
-                            f"Cannot extract component from subspace {i} for"
-                            f" function space with {fs.num_sub_spaces}"
-                            " number of subspaces.",
-                        )
-                    surface = _surface_plot_function(obj.sub(i).collapse(), **kwargs)
-                    data.append(surface)
+    if len(obj.ufl_shape) == 0:  # Scalar Function
+        data.append(_handle_scalar_function(obj, **kwargs))
+
+    elif len(obj.ufl_shape) == 1:  # Vector Function
+        data.append(_handle_vector_function(obj, **kwargs))
 
     if kwargs.get("wireframe", True):
         lines = _wireframe_plot_mesh(obj.function_space.mesh)
@@ -392,25 +391,40 @@ def _handle_function(
     return data
 
 
+class FEniCSPlotFig:
+    def __init__(self, fig: go.FigureWidget) -> None:
+        self.figure = fig
+
+    def add_plot(self, fig: go.FigureWidget) -> None:
+        data = list(self.figure.data) + list(fig.figure.data)
+        self.figure = go.FigureWidget(data=data, layout=self.figure.layout)
+
+    def show(self) -> None:
+        if _SHOW_PLOT:
+            self.figure.show()
+
+    def save(self, filename: str) -> None:
+        savefig(self.figure, filename)
+
+
 def plot(
     obj,
-    colorscale="inferno",
-    wireframe=True,
-    scatter=False,
-    size=10,
-    norm=False,
-    name="f",
-    color="gray",
-    opacity=1.0,
-    show_grid=False,
-    size_frame=None,
-    background=(242, 242, 242),
-    normalize=False,
-    component=None,
-    showscale=True,
-    show=True,
-    filename=None,
-):
+    colorscale: str = "inferno",
+    wireframe: bool = True,
+    scatter: bool = False,
+    size: int = 10,
+    name: str = "f",
+    color: str = "gray",
+    opacity: float = 1.0,
+    show_grid: bool = False,
+    size_frame: typing.Optional[typing.Tuple[int, int]] = None,
+    background: typing.Tuple[int, int, int] = (242, 242, 242),
+    normalize: bool = False,
+    component: typing.Optional[str] = None,
+    showscale: bool = True,
+    show: bool = True,
+    filename: typing.Optional[str] = None,
+) -> FEniCSPlotFig:
     """Plot FEniCSx object
 
     Parameters
@@ -425,8 +439,6 @@ def plot(
         Plot function as scatter plot, by default False
     size : int, optional
         Size of scatter points, by default 10
-    norm : bool, optional
-        For vectors plot the norm as a surface, by default False
     name : str, optional
         Name to show up in legend, by default "f"
     color : str, optional
@@ -478,7 +490,6 @@ def plot(
         obj,
         scatter=scatter,
         colorscale=colorscale,
-        norm=norm,
         normalize=normalize,
         size=size,
         size_frame=size_frame,
@@ -513,19 +524,3 @@ def plot(
         fig.show()
 
     return FEniCSPlotFig(fig)
-
-
-class FEniCSPlotFig:
-    def __init__(self, fig):
-        self.figure = fig
-
-    def add_plot(self, fig):
-        data = list(self.figure.data) + list(fig.figure.data)
-        self.figure = go.FigureWidget(data=data, layout=self.figure.layout)
-
-    def show(self):
-        if _SHOW_PLOT:
-            self.figure.show()
-
-    def save(self, filename):
-        savefig(self.figure, filename)

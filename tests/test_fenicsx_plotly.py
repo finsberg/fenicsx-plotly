@@ -67,17 +67,16 @@ def test_plot_vector_P_function_space(dim, wireframe, degree):
 
 
 @pytest.mark.parametrize(
-    "dim, wireframe, norm, normalize, degree, component",
+    "dim, wireframe, normalize, degree, component",
     it.product(
         [2, 3],
-        [True, False],
         [True, False],
         [True, False],
         [1, 2],
         [None, "magnitude", "x", "y", "z"],
     ),
 )
-def test_plot_vector_cg_function(dim, wireframe, norm, normalize, degree, component):
+def test_plot_vector_cg_function(dim, wireframe, normalize, degree, component):
     mesh = get_mesh(dim)
     el = ufl.VectorElement("P", mesh.ufl_cell(), degree)
     V = dolfinx.fem.FunctionSpace(mesh, el)
@@ -101,7 +100,6 @@ def test_plot_vector_cg_function(dim, wireframe, norm, normalize, degree, compon
     u.interpolate(expr)
     plot(
         u,
-        norm=norm,
         wireframe=wireframe,
         show=False,
         component=component,
