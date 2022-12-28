@@ -21,14 +21,18 @@ except ValueError:
     _RENDERER = "notebook"
 
 
-def set_renderer(renderer):
+def set_renderer(renderer: str) -> None:
     pio.renderers.default = renderer
 
 
 set_renderer(_RENDERER)
 
 
-def savefig(fig, filename, save_config=None):
+def savefig(
+    fig: go.FigureWidget,
+    filename: str,
+    save_config: typing.Optional[typing.Dict[str, typing.Any]] = None,
+):
     """Save figure to file
 
     Parameters
@@ -43,13 +47,13 @@ def savefig(fig, filename, save_config=None):
         to `plotly.offline.plot`, by default None
     """
 
-    filename = Path(filename)
-    outdir = filename.parent
+    fname = Path(filename)
+    outdir = fname.parent
     assert outdir.exists(), f"Folder {outdir} does not exist"
 
     config = {
         "toImageButtonOptions": {
-            "filename": filename.stem,
+            "filename": fname.stem,
             "width": 1500,
             "height": 1200,
         },
@@ -57,11 +61,10 @@ def savefig(fig, filename, save_config=None):
     if save_config is not None:
         config.update(save_config)
 
-    path = outdir.joinpath(filename)
-    plotly.offline.plot(fig, filename=path.as_posix(), auto_open=False, config=config)
+    plotly.offline.plot(fig, filename=fname.as_posix(), auto_open=False, config=config)
 
 
-def _get_triangles(mesh):
+def _get_triangles(mesh: dolfinx.mesh.Mesh) -> np.ndarray[int]:
     faces = dolfinx.mesh.locate_entities(
         mesh,
         2,
@@ -79,7 +82,9 @@ def _get_triangles(mesh):
     return triangle
 
 
-def _surface_plot_mesh(mesh, color, opacity=1.0, **kwargs):
+def _surface_plot_mesh(
+    mesh: dolfinx.mesh.Mesh, color: str = "gray", opacity: float = 1.0, **kwargs
+):
     coord = mesh.geometry.x
     triangle = _get_triangles(mesh)
     if len(coord[0, :]) == 2:
@@ -101,7 +106,7 @@ def _surface_plot_mesh(mesh, color, opacity=1.0, **kwargs):
     return surface
 
 
-def _get_cells(mesh) -> np.ndarray:
+def _get_cells(mesh: dolfinx.mesh.Mesh) -> np.ndarray:
     dm = mesh.geometry.dofmap
     cells = np.zeros((dm.num_nodes, len(dm.links(0))), dtype=np.int32)
     # FIXME: Should be possible to vectorize this
@@ -110,7 +115,7 @@ def _get_cells(mesh) -> np.ndarray:
     return cells
 
 
-def _wireframe_plot_mesh(mesh, **kwargs) -> go.Scatter3d:
+def _wireframe_plot_mesh(mesh: dolfinx.mesh.Mesh, **kwargs) -> go.Scatter3d:
     coord = mesh.geometry.x
 
     if len(coord[0, :]) == 2:
@@ -140,7 +145,9 @@ def _wireframe_plot_mesh(mesh, **kwargs) -> go.Scatter3d:
     return lines
 
 
-def _plot_dofs(functionspace: dolfinx.fem.FunctionSpace, size: int, **kwargs):
+def _plot_dofs(
+    functionspace: dolfinx.fem.FunctionSpace, size: int, **kwargs
+) -> go.Scatter3d:
     dofs_coord = functionspace.tabulate_dof_coordinates()
     if len(dofs_coord[0, :]) == 2:
         dofs_coord = np.c_[dofs_coord, np.zeros(len(dofs_coord[:, 0]))]
@@ -192,11 +199,11 @@ def _get_vertex_values(function: dolfinx.fem.Function) -> np.ndarray:
 
 def _surface_plot_function(
     function: dolfinx.fem.Function,
-    colorscale,
-    showscale=True,
-    intensitymode="vertex",
+    colorscale: str = "inferno",
+    showscale: bool = True,
+    intensitymode: str = "vertex",
     **kwargs,
-):
+) -> go.Mesh3d:
     fs = function.function_space
     mesh = fs.mesh
 
@@ -234,7 +241,7 @@ def _surface_plot_function(
 
 def _scatter_plot_function(
     function: dolfinx.fem.Function, colorscale, showscale=True, size=10, **kwargs
-):
+) -> go.Scatter3d:
     dofs_coord = function.function_space.tabulate_dof_coordinates()
     if len(dofs_coord[0, :]) == 2:
         dofs_coord = np.c_[dofs_coord, np.zeros(len(dofs_coord[:, 0]))]
@@ -385,18 +392,18 @@ def _handle_function(
 
 
 class FEniCSPlotFig:
-    def __init__(self, fig):
+    def __init__(self, fig: go.FigureWidget) -> None:
         self.figure = fig
 
-    def add_plot(self, fig):
+    def add_plot(self, fig: go.FigureWidget) -> None:
         data = list(self.figure.data) + list(fig.figure.data)
         self.figure = go.FigureWidget(data=data, layout=self.figure.layout)
 
-    def show(self):
+    def show(self) -> None:
         if _SHOW_PLOT:
             self.figure.show()
 
-    def save(self, filename):
+    def save(self, filename: str) -> None:
         savefig(self.figure, filename)
 
 
