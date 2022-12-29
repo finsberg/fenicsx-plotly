@@ -47,12 +47,14 @@ plot(mesh)
 
 ## Supported objects (and object that will be supported in the future)
 - [x] dolfinx.mesh.Mesh
-- [ ] dolfinx.mesh.MeshTagsMetaClass
+- [x] dolfinx.mesh.MeshTagsMetaClass
 - [x] dolfinx.fem.FunctionSpace
 - [x] dolfinx.fem.Function
     - [x] Scalar
     - [x] Vector
 - [ ] dolfinx.fem.bcs.DirichletBCMetaClass
+    - [x] Scalar
+    - [ ] Vector
 
 
 ## Usage with JupyterBook
