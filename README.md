@@ -31,7 +31,7 @@ python3 -m pip install fenicsx-plotly
 ```
 We also provide a pre-built docker image with FEniCSx and `fenicsx-plotly` installed. You pull this image using the command
 ```
-docker pull ghcr.io/finsberg/fenicsx-plotly:v0.1.3
+docker pull ghcr.io/finsberg/fenicsx-plotly:v0.1.4
 ```
 
 ## Simple Example
