@@ -10,16 +10,6 @@
 
 `fenicsx-plotly` is package for plotting FEniCSx objects using plotly. It is a successor of [`fenics-plotly`](https://github.com/finsberg/pulse).
 
----
-
-## Notice
-
-**This repo is a complete rewrite of `fenics-plotly` to work with FEniCSx. The package is not yet ready for release.**
-
-If you are using FEniCS please check out [`fenics-plotly`](https://github.com/finsberg/fenics-plotly) instead
-
----
-
 * Documentation: https://finsberg.github.io/fenicsx-plotly/
 * Source code: https://github.com/finsberg/fenicsx-plotly
 
