@@ -1,4 +1,5 @@
 import itertools as it
+from pathlib import Path
 
 import dolfinx
 import numpy as np
@@ -11,13 +12,12 @@ from mpi4py import MPI
 
 
 @pytest.fixture
-def response():
-    """Sample pytest fixture.
-
-    See more at: http://doc.pytest.org/en/latest/fixture.html
-    """
-    # import requests
-    # return requests.get('https://github.com/audreyr/cookiecutter-pypackage')
+def filename():
+    filename = Path("mesh.html")
+    if filename.is_file():
+        filename.unlink()
+    yield filename
+    filename.unlink()
 
 
 def get_mesh(dim):
@@ -116,3 +116,38 @@ def test_facet_function_3d():
 
     facet_tags = dolfinx.mesh.meshtags(mesh, 2, entities, values)
     plot(facet_tags)
+
+
+def test_save(filename):
+    mesh = get_mesh(3)
+    plot(mesh, filename=filename, show=False)
+    assert filename.is_file()
+
+
+@pytest.mark.parametrize(
+    "dim, wireframe",
+    it.product([2, 3], [True, False]),
+)
+def test_plot_dirichlet_bc(dim, wireframe):
+    mesh = get_mesh(dim)
+
+    boundary = lambda x: np.isclose(x[0], 0)
+
+    el = ufl.FiniteElement("P", mesh.ufl_cell(), 2)
+    V = dolfinx.fem.FunctionSpace(mesh, el)
+
+    dofs_D = dolfinx.fem.locate_dofs_geometrical(V, boundary)
+
+    # x = ufl.SpatialCoordinate(mesh)
+
+    # u_exact = dolfinx.fem.Expression(
+    #     ufl.as_vector((1 + x[0], x[1])),
+    #     V.element.interpolation_points(),
+    # )
+    u_exact = lambda x: 1 + x[0]
+
+    u_bc = dolfinx.fem.Function(V)
+    u_bc.interpolate(u_exact)
+    bc = dolfinx.fem.dirichletbc(u_bc, dofs_D)
+
+    plot(bc, wireframe=wireframe, show=False)

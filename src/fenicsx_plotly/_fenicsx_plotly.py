@@ -393,8 +393,9 @@ def _handle_function(
 
 def _handle_meshtags(
     obj: dolfinx.mesh.MeshTagsMetaClass, colorscale: str = "inferno", **kwargs
-) -> go.Mesh3d:
+) -> list[_BaseTraceType]:
 
+    data = []
     if obj.dim != 2:
         raise NotImplementedError("Plotting of MeshTags is only supported for facets")
     mesh = obj.mesh
@@ -409,22 +410,74 @@ def _handle_meshtags(
 
     hoverinfo = ["val:" + "%d" % item for item in array]
 
-    return go.Mesh3d(
-        x=coord[:, 0],
-        y=coord[:, 1],
-        z=coord[:, 2],
-        i=triangle[0, :],
-        j=triangle[1, :],
-        k=triangle[2, :],
-        flatshading=True,
-        intensity=array,
-        colorscale=colorscale,
-        lighting=dict(ambient=1),
-        name="",
-        hoverinfo="all",
-        text=hoverinfo,
-        intensitymode="cell",
+    data.append(
+        go.Mesh3d(
+            x=coord[:, 0],
+            y=coord[:, 1],
+            z=coord[:, 2],
+            i=triangle[0, :],
+            j=triangle[1, :],
+            k=triangle[2, :],
+            flatshading=True,
+            intensity=array,
+            colorscale=colorscale,
+            lighting=dict(ambient=1),
+            name="",
+            hoverinfo="all",
+            text=hoverinfo,
+            intensitymode="cell",
+        ),
     )
+
+    if kwargs.get("wireframe", True):
+        lines = _wireframe_plot_mesh(mesh)
+        data.append(lines)
+
+    return data
+
+
+def _plot_dirichlet_bc(
+    obj: dolfinx.fem.bcs.DirichletBCMetaClass,
+    size: int = 10,
+    colorscale: str = "inferno",
+    **kwargs,
+) -> list[_BaseTraceType]:
+    if obj.function_space.element.num_sub_elements > 0:
+        raise NotImplementedError(
+            "Can plot dirichlet BC for finite elements (not vector elements)",
+        )
+    dofs = obj.function_space.tabulate_dof_coordinates()
+    if len(dofs[0, :]) == 2:
+        dofs = np.c_[dofs, np.zeros(len(dofs[:, 0]))]
+    indices, _ = obj.dof_indices()
+
+    coords = dofs[indices]
+    vals = obj.value.x.array[indices]
+
+    return go.Scatter3d(
+        x=coords[:, 0],
+        y=coords[:, 1],
+        z=coords[:, 2],
+        mode="markers",
+        marker=dict(
+            size=size,
+            color=vals,
+            colorscale=colorscale,
+            colorbar=dict(thickness=20),
+        ),
+    )
+
+
+def _handle_dirichlet_bc(
+    obj: dolfinx.fem.bcs.DirichletBCMetaClass, **kwargs
+) -> list[_BaseTraceType]:
+    data = []
+    points = _plot_dirichlet_bc(obj, **kwargs)
+    data.append(points)
+
+    lines = _wireframe_plot_mesh(obj.function_space.mesh, **kwargs)
+    data.append(lines)
+    return data
 
 
 class FEniCSPlotFig:
@@ -516,8 +569,8 @@ def plot(
     elif isinstance(obj, dolfinx.fem.FunctionSpace):
         handle = _handle_function_space
 
-    # elif isinstance(obj, fe.DirichletBC):
-    #     handle = _handle_dirichlet_bc
+    elif isinstance(obj, dolfinx.fem.bcs.DirichletBCMetaClass):
+        handle = _handle_dirichlet_bc
 
     else:
         raise TypeError(f"Cannot plot object of type {type(obj)}")
