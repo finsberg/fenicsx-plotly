@@ -5,6 +5,7 @@
 [![Deploy static content to Pages](https://github.com/finsberg/fenicsx-plotly/actions/workflows/build_docs.yml/badge.svg)](https://github.com/finsberg/fenicsx-plotly/actions/workflows/build_docs.yml)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![Create and publish a Docker image](https://github.com/finsberg/fenicsx-plotly/actions/workflows/docker-image.yml/badge.svg)](https://github.com/finsberg/fenicsx-plotly/pkgs/container/fenicsx-plotly)
+[![Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/finsberg/a7290de789564f03eb6b1ee122fce423/raw/ap_features-coverage.json)](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/finsberg/a7290de789564f03eb6b1ee122fce423/raw/ap_features-coverage.json)
 
 # fenicsx-plotly
 
