@@ -115,7 +115,7 @@ def test_facet_function_3d():
     values = np.full_like(entities, marker)
 
     facet_tags = dolfinx.mesh.meshtags(mesh, 2, entities, values)
-    plot(facet_tags)
+    plot(facet_tags, mesh=mesh)
 
 
 def test_save(filename):

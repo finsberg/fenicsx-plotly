@@ -4,6 +4,7 @@ from pathlib import Path
 
 import dolfinx
 import numpy as np
+import numpy.typing as npt
 import plotly
 import plotly.graph_objects as go
 import plotly.io as pio
@@ -64,7 +65,7 @@ def savefig(
     plotly.offline.plot(fig, filename=fname.as_posix(), auto_open=False, config=config)
 
 
-def _get_triangles(mesh: dolfinx.mesh.Mesh) -> np.ndarray[int]:
+def _get_triangles(mesh: dolfinx.mesh.Mesh) -> npt.NDArray[np.int32]:
     faces = dolfinx.mesh.locate_entities(
         mesh,
         2,
@@ -108,11 +109,7 @@ def _surface_plot_mesh(
 
 def _get_cells(mesh: dolfinx.mesh.Mesh) -> np.ndarray:
     dm = mesh.geometry.dofmap
-    cells = np.zeros((dm.num_nodes, len(dm.links(0))), dtype=np.int32)
-    # FIXME: Should be possible to vectorize this
-    for node in range(dm.num_nodes):
-        cells[node, :] = dm.links(node)
-    return cells
+    return dm.T
 
 
 def _wireframe_plot_mesh(mesh: dolfinx.mesh.Mesh, **kwargs) -> go.Scatter3d:
@@ -165,7 +162,6 @@ def _plot_dofs(
 
 
 def _get_vertex_values(function: dolfinx.fem.Function) -> np.ndarray:
-
     fs = function.function_space
     mesh = fs.mesh
     shape = function.ufl_shape
@@ -274,7 +270,6 @@ def _cone_plot(
     normalize: bool = False,
     **kwargs,
 ) -> go.Cone:
-
     mesh = function.function_space.mesh
     points = mesh.geometry.x
     vectors = _get_vertex_values(function)
@@ -343,7 +338,6 @@ def _handle_vector_function(
     component: typing.Optional[str] = None,
     **kwargs,
 ) -> _BaseTraceType:
-
     fs = obj.function_space
 
     if component is None:
@@ -392,13 +386,17 @@ def _handle_function(
 
 
 def _handle_meshtags(
-    obj: dolfinx.mesh.MeshTagsMetaClass, colorscale: str = "inferno", **kwargs
+    obj: dolfinx.mesh.MeshTags, colorscale: str = "inferno", **kwargs
 ) -> list[_BaseTraceType]:
-
     data = []
     if obj.dim != 2:
         raise NotImplementedError("Plotting of MeshTags is only supported for facets")
-    mesh = obj.mesh
+    mesh = kwargs.get("mesh")
+    if mesh is None:
+        raise RuntimeError(
+            "Please provide mesh as a keyword argument when plotting MeshTags",
+        )
+
     # array = meshfunc.array()
     coord = mesh.geometry.x
     if len(coord[0, :]) == 2:
@@ -437,39 +435,18 @@ def _handle_meshtags(
 
 
 def _plot_dirichlet_bc(
-    obj: dolfinx.fem.bcs.DirichletBCMetaClass,
+    obj: dolfinx.fem.bcs.DirichletBC,
     size: int = 10,
     colorscale: str = "inferno",
     **kwargs,
 ) -> list[_BaseTraceType]:
-    if obj.function_space.element.num_sub_elements > 0:
-        raise NotImplementedError(
-            "Can plot dirichlet BC for finite elements (not vector elements)",
-        )
-    dofs = obj.function_space.tabulate_dof_coordinates()
-    if len(dofs[0, :]) == 2:
-        dofs = np.c_[dofs, np.zeros(len(dofs[:, 0]))]
-    indices, _ = obj.dof_indices()
-
-    coords = dofs[indices]
-    vals = obj.value.x.array[indices]
-
-    return go.Scatter3d(
-        x=coords[:, 0],
-        y=coords[:, 1],
-        z=coords[:, 2],
-        mode="markers",
-        marker=dict(
-            size=size,
-            color=vals,
-            colorscale=colorscale,
-            colorbar=dict(thickness=20),
-        ),
+    return _scatter_plot_function(
+        function=obj.g, size=size, colorscale=colorscale, **kwargs
     )
 
 
 def _handle_dirichlet_bc(
-    obj: dolfinx.fem.bcs.DirichletBCMetaClass, **kwargs
+    obj: dolfinx.fem.bcs.DirichletBC, **kwargs
 ) -> list[_BaseTraceType]:
     data = []
     points = _plot_dirichlet_bc(obj, **kwargs)
@@ -513,6 +490,7 @@ def plot(
     showscale: bool = True,
     show: bool = True,
     filename: typing.Optional[str] = None,
+    **kwargs,
 ) -> FEniCSPlotFig:
     """Plot FEniCSx object
 
@@ -563,13 +541,13 @@ def plot(
     elif isinstance(obj, dolfinx.fem.Function):
         handle = _handle_function
 
-    elif isinstance(obj, dolfinx.mesh.MeshTagsMetaClass):
+    elif isinstance(obj, dolfinx.mesh.MeshTags):
         handle = _handle_meshtags
 
     elif isinstance(obj, dolfinx.fem.FunctionSpace):
         handle = _handle_function_space
 
-    elif isinstance(obj, dolfinx.fem.bcs.DirichletBCMetaClass):
+    elif isinstance(obj, dolfinx.fem.bcs.DirichletBC):
         handle = _handle_dirichlet_bc
 
     else:
@@ -589,6 +567,7 @@ def plot(
         wireframe=wireframe,
         showscale=showscale,
         name=name,
+        **kwargs,
     )
 
     layout = go.Layout(
