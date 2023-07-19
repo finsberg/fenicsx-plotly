@@ -84,7 +84,10 @@ def _get_triangles(mesh: dolfinx.mesh.Mesh) -> npt.NDArray[np.int32]:
 
 
 def _surface_plot_mesh(
-    mesh: dolfinx.mesh.Mesh, color: str = "gray", opacity: float = 1.0, **kwargs
+    mesh: dolfinx.mesh.Mesh,
+    color: str = "gray",
+    opacity: float = 1.0,
+    **kwargs,
 ):
     coord = mesh.geometry.x
     triangle = _get_triangles(mesh)
@@ -143,7 +146,9 @@ def _wireframe_plot_mesh(mesh: dolfinx.mesh.Mesh, **kwargs) -> go.Scatter3d:
 
 
 def _plot_dofs(
-    functionspace: dolfinx.fem.FunctionSpace, size: int, **kwargs
+    functionspace: dolfinx.fem.FunctionSpace,
+    size: int,
+    **kwargs,
 ) -> go.Scatter3d:
     dofs_coord = functionspace.tabulate_dof_coordinates()
     if len(dofs_coord[0, :]) == 2:
@@ -236,7 +241,11 @@ def _surface_plot_function(
 
 
 def _scatter_plot_function(
-    function: dolfinx.fem.Function, colorscale, showscale=True, size=10, **kwargs
+    function: dolfinx.fem.Function,
+    colorscale,
+    showscale=True,
+    size=10,
+    **kwargs,
 ) -> go.Scatter3d:
     dofs_coord = function.function_space.tabulate_dof_coordinates()
     if len(dofs_coord[0, :]) == 2:
@@ -311,7 +320,8 @@ def _handle_mesh(obj: dolfinx.mesh.Mesh, **kwargs) -> list[_BaseTraceType]:
 
 
 def _handle_function_space(
-    obj: dolfinx.fem.FunctionSpace, **kwargs
+    obj: dolfinx.fem.FunctionSpace,
+    **kwargs,
 ) -> list[_BaseTraceType]:
     data = []
     points = _plot_dofs(obj, **kwargs)
@@ -324,7 +334,9 @@ def _handle_function_space(
 
 
 def _handle_scalar_function(
-    obj: dolfinx.fem.Function, scatter: bool = False, **kwargs
+    obj: dolfinx.fem.Function,
+    scatter: bool = False,
+    **kwargs,
 ) -> _BaseTraceType:
     if scatter:
         surface = _scatter_plot_function(obj, **kwargs)
@@ -386,7 +398,9 @@ def _handle_function(
 
 
 def _handle_meshtags(
-    obj: dolfinx.mesh.MeshTags, colorscale: str = "inferno", **kwargs
+    obj: dolfinx.mesh.MeshTags,
+    colorscale: str = "inferno",
+    **kwargs,
 ) -> list[_BaseTraceType]:
     data = []
     if obj.dim != 2:
@@ -441,12 +455,16 @@ def _plot_dirichlet_bc(
     **kwargs,
 ) -> list[_BaseTraceType]:
     return _scatter_plot_function(
-        function=obj.g, size=size, colorscale=colorscale, **kwargs
+        function=obj.g,
+        size=size,
+        colorscale=colorscale,
+        **kwargs,
     )
 
 
 def _handle_dirichlet_bc(
-    obj: dolfinx.fem.bcs.DirichletBC, **kwargs
+    obj: dolfinx.fem.bcs.DirichletBC,
+    **kwargs,
 ) -> list[_BaseTraceType]:
     data = []
     points = _plot_dirichlet_bc(obj, **kwargs)
